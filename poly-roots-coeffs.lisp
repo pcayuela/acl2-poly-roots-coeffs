@@ -20,8 +20,8 @@
 ;;       between those coefficients and the elementary symmetric
 ;;       functions of the roots (paper's eq. (3)).
 ;;
-;;   (3) The central claim of the paper's Section VI: the "hojas" reading
-;;       (grouping by the highest root index first) and the "pizarron"
+;;   (3) The central claim of the paper's Section VI: the forward reading
+;;       (grouping by the highest root index first) and the reverse
 ;;       reading (grouping by the lowest root index first) of the same
 ;;       table are equivalent, because they amount to building the same
 ;;       product of linear factors in opposite order. This is formalized
@@ -558,10 +558,10 @@
 
 
 ;; ===========================================================================
-;; PART III -- Equivalence of the "hojas" and "pizarron" readings
+;; PART III -- Equivalence of the forward and reverse readings
 ;;             (paper's Section VI): the same table, read by grouping
-;;             on the highest root index first (hojas) or the lowest
-;;             root index first (pizarron), gives the same coefficients.
+;;             on the highest root index first (forward) or the lowest
+;;             root index first (reverse), gives the same coefficients.
 ;;             This is exactly order-independence of the table
 ;;             construction: it does not matter whether the roots are
 ;;             multiplied in as given, or in reverse order.
@@ -592,9 +592,9 @@
 ;; -----------------------------------------------------------------
 ;; THEOREM 3 (equivalence of the two readings; paper's Section VI):
 ;; the table construction does not depend on the order of the roots --
-;; building it root-by-root from the front (as in Table III, "hojas"
+;; building it root-by-root from the front (as in Table III, the forward
 ;; grouping by highest index first when the recursion is unrolled) or
-;; from the reversed list (the "pizarron" grouping, by lowest index
+;; from the reversed list (the reverse grouping, by lowest index
 ;; first) yields the identical coefficient list.
 ;; -----------------------------------------------------------------
 (defthm poly-from-roots-reverse-invariant
@@ -604,7 +604,7 @@
 
 ;; Corollary, stated the way the paper states it (eq. (8)-(9)): the two
 ;; readings agree at every single coefficient, not just as whole lists.
-(defthm hojas-pizarron-agree-per-coefficient
+(defthm reverse-order-construction-agrees-per-coefficient
   (equal (nth p (poly-from-roots (rev roots)))
          (nth p (poly-from-roots roots))))
 
