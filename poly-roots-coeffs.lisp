@@ -542,9 +542,9 @@
 ;; coefficient of the original polynomial.
 ;;     poly-from-roots(-a1,...,-an)
 ;;         = (-1)^n * alternate-sign(poly-from-roots(a1,...,an))
-;; Equivalently (dividing both sides by (-1)^(n-k) at position k):
-;;     bk = (-1)^(n-k) * ek(a1,...,an)
-;; which is exactly the paper's eq. (3), bi = (-1)^(n-i) e_(n-i)(a).
+;; This is the list form of the relation. Its coefficient form,
+;;     bk = (-1)^(n-k) * ek(a1,...,an)   (paper's eq. (3)),
+;; which mentions ELEM-SYM, is the theorem CARDANO-VIETA just below.
 ;; -----------------------------------------------------------------
 (defthm cardano-vieta-list-form
   (equal (poly-from-roots (negate-list roots))
@@ -557,6 +557,56 @@
                                 mult-by-root-as-poly-add
                                 (:definition poly-from-roots)))))
 
+
+;; -----------------------------------------------------------------
+;; THEOREM 2' (Cardano-Vieta, coefficient form; paper's eq. (3)): each
+;; coefficient of poly-from-roots is, up to sign, an elementary
+;; symmetric function of the roots:
+;;     b_k = (-1)^(n-k) * e_(n-k)(a_1,...,a_n),   0 <= k <= n = (len roots).
+;; Unlike CARDANO-VIETA-LIST-FORM above, which relates two products of
+;; linear factors, this theorem mentions ELEM-SYM itself. It is proved
+;; directly by induction on the roots, using the recursion
+;;     e_j(a . r) = a * e_(j-1)(r) + e_j(r)
+;; of ELEM-SYM and the coefficient-wise form of MULT-BY-ROOT.
+;; -----------------------------------------------------------------
+
+;; (-1)^(j+1) = -(-1)^j
+(defthm expt--1-plus-1
+  (implies (natp j)
+           (equal (expt -1 (+ 1 j)) (- (expt -1 j)))))
+
+;; e_k of a list with fewer than k elements is 0.
+(defthm elem-sym-zero-above-length
+  (implies (and (natp k) (< (len lst) k))
+           (equal (elem-sym k lst) 0)))
+
+;; Coefficient k of (x - a) * P(x): coefficient (k-1) of P, minus a
+;; times coefficient k of P.
+(defthm nth-mult-by-root
+  (implies (and (number-listp p) (natp k) (<= k (len p)))
+           (equal (nth k (mult-by-root p a))
+                  (+ (if (zp k) 0 (nth (1- k) p))
+                     (* (- a) (nth k p)))))
+  :hints (("Goal" :in-theory (e/d (mult-by-root-as-poly-add)
+                                  (poly-add mult-by-root))
+                  :use ((:instance nth-poly-add
+                          (p (poly-shift p)) (q (poly-scale p (- a))) (i k))))))
+
+;; Induction scheme: the step needs the hypothesis at k and at k-1.
+(defun cv-ind (roots k)
+  (declare (xargs :measure (len roots)))
+  (if (endp roots)
+      k
+    (cons (cv-ind (cdr roots) k)
+          (cv-ind (cdr roots) (if (zp k) 0 (1- k))))))
+
+(defthm cardano-vieta
+  (implies (and (number-listp roots) (natp k) (<= k (len roots)))
+           (equal (nth k (poly-from-roots roots))
+                  (* (expt -1 (- (len roots) k))
+                     (elem-sym (- (len roots) k) roots))))
+  :hints (("Goal" :induct (cv-ind roots k)
+                  :in-theory (disable mult-by-root mult-by-root-as-poly-add))))
 
 ;; ===========================================================================
 ;; PART III -- Equivalence of the forward and reverse readings
