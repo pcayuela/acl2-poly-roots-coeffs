@@ -67,14 +67,24 @@
 
 (in-package "ACL2")
 
-;; Several of the DEFUNs below declare a :guard (e.g. TRUE-LISTP on a
-;; coefficient list) that documents the intended domain but is not
-;; strong enough for ACL2 to automatically prove the function satisfies
-;; it when applied recursively (e.g. TRUE-LISTP alone does not imply
-;; the list's elements are numbers). We do not attempt guard
-;; verification in this book -- only the logical (unguarded) semantics
-;; of these functions is used below.
+;; Every DEFUN below declares a :guard (NUMBER-LISTP for coefficient and
+;; root lists, since the functions add and multiply the elements).
+;; Guard verification is deferred to PART III-B at the end of the
+;; development, once the type-preservation lemmas it needs have been
+;; proved; the logical definitions and all theorems are unaffected.
 (set-verify-guards-eagerness 0)
+
+;; A recognizer for lists whose every element is an ACL2 number. Needed
+;; because NTH past the end of a list returns NIL, and ACL2's "+"
+;; silently coerces a non-number to 0 -- so an equation like
+;; (nth i (poly-add p q)) = (+ (nth i p) (nth i q)) can only hold as a
+;; literal EQUAL when the elements involved are genuinely numbers. It is
+;; also the guard of the list-processing functions below, so it is a
+;; PROPER list recognizer (the empty case requires NIL, not just any
+;; atom): that is what makes ENDP's guard provable from it.
+(defun number-listp (l)
+  (declare (xargs :guard t))
+  (if (consp l) (and (acl2-numberp (car l)) (number-listp (cdr l))) (null l)))
 
 ;; ===========================================================================
 ;; PART 0 -- Polynomials as coefficient lists
@@ -85,39 +95,39 @@
 
 ;; Evaluate a polynomial (coefficient list) at a point x. Horner's rule.
 (defun poly-eval (coeffs x)
-  (declare (xargs :guard (and (acl2-numberp x) (true-listp coeffs))))
+  (declare (xargs :guard (and (acl2-numberp x) (number-listp coeffs))))
   (if (endp coeffs)
       0
     (+ (car coeffs) (* x (poly-eval (cdr coeffs) x)))))
 
 ;; Add two coefficient lists (pointwise, padding the shorter one with 0s).
 (defun poly-add (p q)
-  (declare (xargs :guard (and (true-listp p) (true-listp q))))
+  (declare (xargs :guard (and (number-listp p) (number-listp q))))
   (cond ((endp p) q)
         ((endp q) p)
         (t (cons (+ (car p) (car q)) (poly-add (cdr p) (cdr q))))))
 
 ;; Scale every coefficient by a constant c.
 (defun poly-scale (p c)
-  (declare (xargs :guard (true-listp p)))
+  (declare (xargs :guard (and (number-listp p) (acl2-numberp c))))
   (if (endp p)
       nil
     (cons (* c (car p)) (poly-scale (cdr p) c))))
 
 ;; Negate every coefficient.
 (defun poly-neg (p)
-  (declare (xargs :guard (true-listp p)))
+  (declare (xargs :guard (number-listp p)))
   (poly-scale p -1))
 
 ;; Multiply by x, i.e. raise every term's degree by one (prepend a 0).
 (defun poly-shift (p)
-  (declare (xargs :guard (true-listp p)))
+  (declare (xargs :guard (number-listp p)))
   (cons 0 p))
 
 ;; Multiply the polynomial `coeffs' by the linear factor (x - a):
 ;;    (x - a) * P(x)  =  x*P(x)  -  a*P(x)  =  shift(P) + scale(P, -a)
 (defun mult-by-root (coeffs a)
-  (declare (xargs :guard (and (true-listp coeffs) (acl2-numberp a))))
+  (declare (xargs :guard (and (number-listp coeffs) (acl2-numberp a))))
   (poly-add (poly-shift coeffs) (poly-scale coeffs (- a))))
 
 ;; ---------------------------------------------------------------------------
@@ -142,7 +152,7 @@
 ;; three lists shrinking together, so we supply an explicit induction
 ;; that cdrs P, Q and R in lockstep.
 (defun triple-add-induct (p q r)
-  (declare (xargs :guard (and (true-listp p) (true-listp q) (true-listp r))))
+  (declare (xargs :guard (and (number-listp p) (number-listp q) (number-listp r))))
   (cond ((endp p) (list p q r))
         ((endp q) (list p q r))
         ((endp r) (list p q r))
@@ -274,7 +284,7 @@
 ;; Table I / Table III: poly-from-roots(a1 a2 ... an) generalizes the
 ;; recurrence  bp^(n) = bp-1^(n-1) - an * bp^(n-1),  bn^(n) = 1.
 (defun poly-from-roots (roots)
-  (declare (xargs :guard (true-listp roots)))
+  (declare (xargs :guard (number-listp roots)))
   (if (endp roots)
       (list 1)
     (mult-by-root (poly-from-roots (cdr roots)) (car roots))))
@@ -282,7 +292,7 @@
 ;; The "obviously correct" reference specification: the product of the
 ;; linear factors, evaluated directly.
 (defun prod-factors (roots x)
-  (declare (xargs :guard (and (true-listp roots) (acl2-numberp x))))
+  (declare (xargs :guard (and (number-listp roots) (acl2-numberp x))))
   (if (endp roots)
       1
     (* (- x (car roots)) (prod-factors (cdr roots) x))))
@@ -337,15 +347,6 @@
 (defthm len-poly-from-roots
   (equal (len (poly-from-roots roots))
          (+ 1 (len roots))))
-
-;; A recognizer for lists whose every element is an ACL2 number. Needed
-;; because NTH past the end of a list returns NIL, and ACL2's "+"
-;; silently coerces a non-number to 0 -- so an equation like
-;; (nth i (poly-add p q)) = (+ (nth i p) (nth i q)) can only hold as a
-;; literal EQUAL when the elements involved are genuinely numbers.
-(defun number-listp (l)
-  (declare (xargs :guard t))
-  (if (endp l) t (and (acl2-numberp (car l)) (number-listp (cdr l)))))
 
 (defthm number-listp-poly-scale
   (number-listp (poly-scale p c)))
@@ -409,7 +410,7 @@
 
 ;; Negate every root.
 (defun negate-list (lst)
-  (declare (xargs :guard (true-listp lst)))
+  (declare (xargs :guard (number-listp lst)))
   (if (endp lst)
       nil
     (cons (- (car lst)) (negate-list (cdr lst)))))
@@ -417,7 +418,7 @@
 ;; Flip the sign of every other coefficient: (c0 c1 c2 c3 ...) becomes
 ;; (c0 -c1 c2 -c3 ...), i.e. coefficient i gets multiplied by (-1)^i.
 (defun alternate-sign (coeffs)
-  (declare (xargs :guard (true-listp coeffs)))
+  (declare (xargs :guard (number-listp coeffs)))
   (if (endp coeffs)
       nil
     (cons (car coeffs) (poly-neg (alternate-sign (cdr coeffs))))))
@@ -426,7 +427,7 @@
 ;; the standard "include a1 in the product, or don't" recursion.
 ;; e_0 = 1 for any list; e_k of the empty list is 0 for k > 0.
 (defun elem-sym (k lst)
-  (declare (xargs :guard (and (integerp k) (true-listp lst))))
+  (declare (xargs :guard (and (natp k) (number-listp lst))))
   (cond ((zp k) 1)
         ((endp lst) 0)
         (t (+ (* (car lst) (elem-sym (1- k) (cdr lst)))
@@ -439,7 +440,7 @@
 ;; the elem-sym values, matching the standard generating-function fact
 ;;    prod_{i=1}^n (x + a_i) = sum_{k=0}^n e_k(a) x^(n-k).
 (defun elem-sym-list (roots)
-  (declare (xargs :guard (true-listp roots)))
+  (declare (xargs :guard (number-listp roots)))
   (if (endp roots)
       (list 1)
     (mult-by-root (elem-sym-list (cdr roots)) (- (car roots)))))
@@ -608,6 +609,41 @@
   (equal (nth p (poly-from-roots (rev roots)))
          (nth p (poly-from-roots roots))))
 
+
+;; ===========================================================================
+;; PART III-B -- Guard verification
+;;
+;; Every function above carries a :guard; here they are all verified, in
+;; dependency order. The recursive calls of POLY-FROM-ROOTS,
+;; ELEM-SYM-LIST and ALTERNATE-SIGN pass their own results to
+;; functions whose guard is NUMBER-LISTP, so each needs a lemma that the
+;; result is itself a NUMBER-LISTP (the first is already above).
+;; ===========================================================================
+
+(defthm number-listp-elem-sym-list
+  (number-listp (elem-sym-list roots)))
+
+(defthm number-listp-negate-list
+  (number-listp (negate-list lst)))
+
+(defthm true-listp-rev
+  (true-listp (rev x)))
+
+(verify-guards number-listp)
+(verify-guards poly-scale)
+(verify-guards poly-neg)
+(verify-guards poly-shift)
+(verify-guards poly-add)
+(verify-guards mult-by-root)
+(verify-guards poly-eval)
+(verify-guards triple-add-induct)
+(verify-guards poly-from-roots)
+(verify-guards prod-factors)
+(verify-guards negate-list)
+(verify-guards alternate-sign)
+(verify-guards elem-sym)
+(verify-guards elem-sym-list)
+(verify-guards rev)
 
 ;; ===========================================================================
 ;; PART IV -- Ground numeric check (paper's Section VII-B):
