@@ -207,7 +207,8 @@
          (* x (poly-eval p x))))
 
 ;; Soundness of mult-by-root: evaluating (x - a)*P really does give
-;; (x - a) times the value of P.
+;; (x - a) times the value of P. (No later proof needs this lemma: it is
+;; kept as the one-step statement of Theorem 1 below.)
 (defthm poly-eval-mult-by-root
   (equal (poly-eval (mult-by-root coeffs a) x)
          (* (- x a) (poly-eval coeffs x))))
@@ -225,10 +226,10 @@
   (implies (and (true-listp p) (true-listp q))
            (true-listp (poly-add p q))))
 
-;; Helper reassociation fact used by MULT-BY-ROOT-COMMUTES: swapping the
-;; two middle terms of a 4-way sum. Proved once here from
-;; POLY-ADD-ASSOCIATIVE/POLY-ADD-COMMUTATIVE instead of being
-;; rediscovered by induction at every use site.
+;; Left-commutativity of POLY-ADD (together with POLY-ADD-ASSOCIATIVE and
+;; POLY-ADD-COMMUTATIVE it lets the rewriter normalize any sum of
+;; coefficient lists). Proved once here from those two lemmas instead of
+;; being rediscovered by induction at every use site.
 (defthm poly-add-swap-middle-core
   (implies (and (true-listp x) (true-listp y) (true-listp z))
            (equal (poly-add x (poly-add y z)) (poly-add y (poly-add x z))))
@@ -236,45 +237,6 @@
                         (:instance poly-add-associative (p y) (q x) (r z))
                         (:instance poly-add-commutative (p x) (q y)))
                   :in-theory (disable poly-add-associative poly-add-commutative poly-add))))
-
-(defthm poly-add-swap-middle
-  (implies (and (true-listp w) (true-listp x) (true-listp y) (true-listp z))
-           (equal (poly-add w (poly-add x (poly-add y z)))
-                  (poly-add w (poly-add y (poly-add x z)))))
-  :hints (("Goal" :use ((:instance poly-add-swap-middle-core))
-                  :in-theory (disable poly-add))))
-
-;; mult-by-root commutes with multiplying by two different roots, in
-;; either order -- because polynomial multiplication is commutative.
-;; This is the key step for proving the table construction does not
-;; depend on the order in which the roots are processed. Needs
-;; TRUE-LISTP P for the same reason POLY-ADD-COMMUTATIVE/ASSOCIATIVE do.
-(defthm mult-by-root-commutes
-  (implies (true-listp p)
-           (equal (mult-by-root (mult-by-root p a) b)
-                  (mult-by-root (mult-by-root p b) a)))
-  :hints (("Goal" :in-theory (e/d (mult-by-root-as-poly-add)
-                                   (poly-add mult-by-root))
-                  :use ((:instance poly-add-associative
-                            (p (poly-shift (poly-shift p)))
-                            (q (poly-scale (poly-shift p) (- a)))
-                            (r (poly-add (poly-scale (poly-shift p) (- b)) (poly-scale p (* a b)))))
-                        (:instance poly-add-associative
-                            (p (poly-shift (poly-shift p)))
-                            (q (poly-scale (poly-shift p) (- b)))
-                            (r (poly-add (poly-scale (poly-shift p) (- a)) (poly-scale p (* a b)))))
-                        (:instance poly-add-swap-middle
-                            (w (poly-shift (poly-shift p)))
-                            (x (poly-scale (poly-shift p) (- a)))
-                            (y (poly-scale (poly-shift p) (- b)))
-                            (z (poly-scale p (* a b))))))))
-
-;; mult-by-root is linear in its coefficient-list argument.
-(defthm mult-by-root-poly-scale
-  (equal (mult-by-root (poly-scale p c) a)
-         (poly-scale (mult-by-root p a) c))
-  :hints (("Goal" :in-theory (enable mult-by-root))))
-
 
 ;; ===========================================================================
 ;; PART I -- The table of successive multiplication (paper's Tables I, III
@@ -310,16 +272,8 @@
 (defthm true-listp-poly-shift
   (implies (true-listp p) (true-listp (poly-shift p))))
 
-(defthm true-listp-mult-by-root
-  (implies (true-listp p) (true-listp (mult-by-root p a)))
-  :hints (("Goal" :in-theory (enable mult-by-root))))
-
 (defthm true-listp-poly-from-roots
   (true-listp (poly-from-roots roots)))
-
-(defthm consp-mult-by-root
-  (consp (mult-by-root p a))
-  :hints (("Goal" :in-theory (enable mult-by-root))))
 
 (defthm consp-poly-scale
   (equal (consp (poly-scale p c)) (consp p)))
@@ -366,10 +320,6 @@
   (implies (and (number-listp p) (number-listp q))
            (number-listp (poly-add p q))))
 
-(defthm number-listp-mult-by-root
-  (implies (number-listp p) (number-listp (mult-by-root p a)))
-  :hints (("Goal" :in-theory (enable mult-by-root))))
-
 (defthm number-listp-poly-from-roots
   (number-listp (poly-from-roots roots)))
 
@@ -390,14 +340,6 @@
 
 (defthm consp-poly-from-roots
   (consp (poly-from-roots roots)))
-
-(defthm nth-len-mult-by-root
-  (implies (and (number-listp p) (consp p))
-           (equal (nth (len p) (mult-by-root p a))
-                  (nth (1- (len p)) p)))
-  :hints (("Goal" :in-theory (e/d (mult-by-root-as-poly-add) (poly-add mult-by-root))
-                  :use ((:instance nth-poly-add
-                            (p (poly-shift p)) (q (poly-scale p (- a))) (i (len p)))))))
 
 (defthm nth-out-of-range
   (implies (and (natp i) (<= (len p) i))
@@ -492,6 +434,38 @@
 (defthm true-listp-alternate-sign
   (true-listp (alternate-sign p)))
 
+;; ---------------------------------------------------------------------------
+;; From here on the algebra is done by normalization rather than by explicit
+;; instances: the building blocks POLY-ADD / POLY-SCALE / POLY-SHIFT /
+;; MULT-BY-ROOT / ALTERNATE-SIGN are kept closed (so that no definition
+;; unfolds on its own), POLY-ADD is AC-normalized by the lemmas above, and a
+;; theorem that needs MULT-BY-ROOT in terms of those building blocks enables
+;; MULT-BY-ROOT-AS-POLY-ADD in its own short hint.
+;; ---------------------------------------------------------------------------
+(defthm true-listp-poly-scale
+  (true-listp (poly-scale p c)))
+
+(in-theory (disable poly-add poly-scale poly-shift mult-by-root alternate-sign
+                    mult-by-root-as-poly-add))
+
+;; mult-by-root commutes with multiplying by two different roots, in
+;; either order -- because polynomial multiplication is commutative.
+;; This is the key step for proving the table construction does not
+;; depend on the order in which the roots are processed. Needs
+;; TRUE-LISTP P for the same reason POLY-ADD-COMMUTATIVE/ASSOCIATIVE do.
+(defthm mult-by-root-commutes
+  (implies (true-listp p)
+           (equal (mult-by-root (mult-by-root p a) b)
+                  (mult-by-root (mult-by-root p b) a)))
+  :hints (("Goal" :in-theory (enable mult-by-root-as-poly-add))))
+
+;; mult-by-root is linear in its coefficient-list argument.
+(defthm mult-by-root-poly-scale
+  (equal (mult-by-root (poly-scale p c) a)
+         (poly-scale (mult-by-root p a) c))
+  :hints (("Goal" :in-theory (enable mult-by-root))))
+
+
 ;; shift and alternate-sign "almost" commute, up to an overall sign:
 ;; shift(alt(p)) = -alt(shift(p)). Derived from ALTERNATE-SIGN-POLY-SHIFT
 ;; by scaling both sides by -1 and using POLY-SCALE-POLY-SCALE /
@@ -499,13 +473,7 @@
 (defthm shift-alternate-sign
   (implies (and (number-listp p) (true-listp p))
            (equal (poly-shift (alternate-sign p))
-                  (poly-scale (alternate-sign (poly-shift p)) -1)))
-  :hints (("Goal" :in-theory (disable poly-add poly-scale poly-shift alternate-sign)
-                  :use ((:instance alternate-sign-poly-shift)
-                        (:instance poly-shift-poly-scale (p (alternate-sign p)) (c -1))
-                        (:instance poly-scale-poly-scale
-                                   (p (poly-shift (alternate-sign p))) (c -1) (d -1))
-                        (:instance poly-scale-by-one (p (poly-shift (alternate-sign p))))))))
+                  (poly-scale (alternate-sign (poly-shift p)) -1))))
 
 (defthm mult-by-root-alternate-sign
   (implies (and (number-listp p) (true-listp p))
@@ -558,12 +526,7 @@
   (equal (poly-from-roots (negate-list roots))
          (poly-scale (alternate-sign (poly-from-roots roots))
                       (expt -1 (len roots))))
-  :hints (("Goal"
-           :induct (poly-from-roots roots)
-           :in-theory (disable poly-add poly-scale poly-shift mult-by-root
-                                alternate-sign negate-list
-                                mult-by-root-as-poly-add
-                                (:definition poly-from-roots)))))
+  :hints (("Goal" :induct (poly-from-roots roots))))
 
 
 ;; -----------------------------------------------------------------
@@ -595,8 +558,7 @@
            (equal (nth k (mult-by-root p a))
                   (+ (if (zp k) 0 (nth (1- k) p))
                      (* (- a) (nth k p)))))
-  :hints (("Goal" :in-theory (e/d (mult-by-root-as-poly-add)
-                                  (poly-add mult-by-root))
+  :hints (("Goal" :in-theory (enable mult-by-root-as-poly-add poly-shift poly-scale)
                   :use ((:instance nth-poly-add
                           (p (poly-shift p)) (q (poly-scale p (- a))) (i k))))))
 
@@ -613,8 +575,7 @@
            (equal (nth k (poly-from-roots roots))
                   (* (expt -1 (- (len roots) k))
                      (elem-sym (- (len roots) k) roots))))
-  :hints (("Goal" :induct (cv-ind roots k)
-                  :in-theory (disable mult-by-root mult-by-root-as-poly-add))))
+  :hints (("Goal" :induct (cv-ind roots k))))
 
 ;; ===========================================================================
 ;; PART III -- Equivalence of the two readings
@@ -649,11 +610,7 @@
 (defthm poly-from-roots-append-singleton
   (equal (poly-from-roots (append xs (list a)))
          (mult-by-root (poly-from-roots xs) a))
-  :hints (("Goal"
-           :induct (poly-from-roots xs)
-           :in-theory (disable poly-add poly-scale poly-shift mult-by-root
-                                mult-by-root-as-poly-add
-                                (:definition poly-from-roots)))))
+  :hints (("Goal" :induct (poly-from-roots xs))))
 
 ;; -----------------------------------------------------------------
 ;; THEOREM 3 (equivalence of the two readings; paper's Section VI):
