@@ -20,9 +20,11 @@
 ;;       between those coefficients and the elementary symmetric
 ;;       functions of the roots (paper's eq. (3)).
 ;;
-;;   (3) The central claim of the paper's Section VI: the forward reading
-;;       (grouping by the highest root index first) and the reverse
-;;       reading (grouping by the lowest root index first) of the same
+;;   (3) The central claim of the paper's Section VI: the descending
+;;       reading (grouping the summands by the highest root index first;
+;;       the roots are multiplied in as a1, a2, ..., an, so an is the
+;;       outermost factor) and the ascending reading (grouping by the
+;;       lowest root index first; a1 is the outermost factor) of the same
 ;;       table are equivalent, because they amount to building the same
 ;;       product of linear factors in opposite order. This is formalized
 ;;       as order-independence of the table construction:
@@ -280,9 +282,15 @@
 ;; ===========================================================================
 
 ;; Build P(x) = prod_{a in roots} (x - a) by multiplying in the n
-;; factors one at a time -- exactly the row-by-row construction of
-;; Table I / Table III: poly-from-roots(a1 a2 ... an) generalizes the
-;; recurrence  bp^(n) = bp-1^(n-1) - an * bp^(n-1),  bn^(n) = 1.
+;; factors one at a time, one row of Table I / Table III per factor.
+;; Order of the factors: the recursion peels the FIRST root off the front,
+;; so poly-from-roots(a1 a2 ... an) = mult-by-root(poly-from-roots(a2 ... an), a1):
+;; the first-applied factor is the LAST root an and a1 is multiplied in last
+;; (a1 is the outermost factor: the paper's ascending reading).  The
+;; paper's recurrence  bp^(n) = bp-1^(n-1) - an * bp^(n-1),  bn^(n) = 1
+;; multiplies in a1, a2, ..., an in that order, with an outermost (the
+;; descending reading): that order is (poly-from-roots (rev (a1 ... an))).
+;; Both orders give the same coefficients (Theorem 3 below).
 (defun poly-from-roots (roots)
   (declare (xargs :guard (number-listp roots)))
   (if (endp roots)
@@ -609,13 +617,20 @@
                   :in-theory (disable mult-by-root mult-by-root-as-poly-add))))
 
 ;; ===========================================================================
-;; PART III -- Equivalence of the forward and reverse readings
+;; PART III -- Equivalence of the two readings
 ;;             (paper's Section VI): the same table, read by grouping
-;;             on the highest root index first (forward) or the lowest
-;;             root index first (reverse), gives the same coefficients.
-;;             This is exactly order-independence of the table
-;;             construction: it does not matter whether the roots are
-;;             multiplied in as given, or in reverse order.
+;;             on the highest root index first (descending reading,
+;;             a_n outermost: (poly-from-roots (rev roots))) or the
+;;             lowest root index first (ascending reading, a_1
+;;             outermost: (poly-from-roots roots)), gives the same
+;;             coefficients.  This is exactly order-independence of the
+;;             table construction: it does not matter whether the roots
+;;             are multiplied in as given, or in reverse order.
+;;             The two nested sum-product formulas themselves (paper's
+;;             eqs. (6) and (7)) are defined and proved equal to the
+;;             coefficients in poly-roots-nested-sums.lisp; arbitrary
+;;             permutations of the roots are treated in
+;;             poly-roots-permutations.lisp.
 ;; ===========================================================================
 
 ;; A plain textbook reverse, defined via append so that
@@ -642,11 +657,12 @@
 
 ;; -----------------------------------------------------------------
 ;; THEOREM 3 (equivalence of the two readings; paper's Section VI):
-;; the table construction does not depend on the order of the roots --
-;; building it root-by-root from the front (as in Table III, the forward
-;; grouping by highest index first when the recursion is unrolled) or
-;; from the reversed list (the reverse grouping, by lowest index
-;; first) yields the identical coefficient list.
+;; the table construction does not depend on the order of the roots.
+;; (poly-from-roots roots) multiplies the roots in from the last to the
+;; first, so a1 is the outermost factor (ascending reading);
+;; (poly-from-roots (rev roots)) multiplies them in from the first to the
+;; last, as in Table III, so an is the outermost factor (descending
+;; reading).  Both yield the identical coefficient list.
 ;; -----------------------------------------------------------------
 (defthm poly-from-roots-reverse-invariant
   (equal (poly-from-roots (rev roots))
