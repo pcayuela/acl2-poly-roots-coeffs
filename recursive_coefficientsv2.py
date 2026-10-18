@@ -62,7 +62,7 @@ def calculate_numeric_coefficients(roots):
 
     for p in range(n):
         val = compute_nested_sum(p, p, None)
-        coefficients[p] = ((-1) ** p) * val
+        coefficients[p] = ((-1) ** (n - p)) * val
         
     # Clean numerical noise (e.g. imaginary parts like 1e-16j)
     cleaned_coeffs = {}
@@ -108,7 +108,7 @@ def generate_symbolic_formulas(n):
 
         for p in range(n):
             val = compute_nested_sum_sym(p, p, None)
-            coefficients_sym[p] = sp.simplify(((-1) ** p) * val)
+            coefficients_sym[p] = sp.simplify(((-1) ** (n - p)) * val)
             
         return coefficients_sym
     except ImportError:
