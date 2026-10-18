@@ -20,6 +20,7 @@ P. O. Cayuela (derivation and first ACL2 verification).
 | `poly-roots-coeffs.lisp` | the original book with guards verified, the new theorem `cardano-vieta` (each coefficient is `(-1)^(n-k) * (elem-sym (n-k) roots)`), corrected comments about the order of the factors, and simplified proofs (one global `in-theory` event; no theorem statement of the original changed) |
 | `poly-roots-nested-sums.lisp` | the two nested sum-product formulas of the paper (eqs. (6) and (7)) as `desc-sum` and `asc-sum`, proved for every n and every p to equal the table coefficients up to `(-1)^(n-p)`, hence equal to each other |
 | `poly-roots-permutations.lisp` | order independence for arbitrary permutations of the roots, with the community `perm` (`kestrel/lists-light/perm`); the reversal theorem and the symmetry of `elem-sym` follow as corollaries |
+| `poly-roots-acl2r-examples.lisp` | ACL2(r) only: `(acl2-sqrt 2)` is irrational and the roots `+-sqrt(2)` give `x^2 - 2`; for any real `s`, `w` the conjugate poles `s +- jw` give `x^2 - 2s x + (s^2 + w^2)`, e.g. `-1 +- j sqrt(2)` gives `x^2 + 2x + 3`. Shows that the theorems above, which quantify over all ACL2 numbers, apply to irrational and complex roots |
 | `recursive_coefficientsv2.py` | the Python cross-check (sign fixed, as on `main`) |
 
 ## Certifying
@@ -29,6 +30,10 @@ The books certify with ACL2 8.7 and with ACL2(r) 8.7(r) (the theorems are about
 From this directory, with the community books built:
 
     cert.pl poly-roots-nested-sums poly-roots-permutations
+
+and, with ACL2(r),
+
+    cert.pl poly-roots-acl2r-examples
 
 (`poly-roots-permutations.lisp` needs `kestrel/lists-light/perm` and `perm2`
 from the community books.)
