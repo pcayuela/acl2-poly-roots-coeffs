@@ -23,7 +23,12 @@
 ;;   - each reading has C(n,m) chains, Pascal's triangle
 ;;     (NUMBER-OF-TERMS-ASCENDING, NUMBER-OF-TERMS-DESCENDING), and no
 ;;     chain is repeated (NO-DUPLICATE-TERMS-ASCENDING,
-;;     NO-DUPLICATE-TERMS-DESCENDING).
+;;     NO-DUPLICATE-TERMS-DESCENDING);
+;;   - the chains of each reading are exactly the strictly monotone
+;;     chains of m indices from 1..n, increasing or decreasing
+;;     (ASCENDING-TERMS-ARE-ALL-INCREASING-CHAINS,
+;;     DESCENDING-TERMS-ARE-ALL-DECREASING-CHAINS): every set of m
+;;     distinct roots appears in each reading, exactly once.
 ;;
 ;; Guards are not declared here (the book is about the logical statements).
 ;; ===========================================================================
@@ -296,6 +301,88 @@
   :hints (("Goal" :use ((:instance readings-are-mirror-images)
                         (:instance no-dup-mirror-chains (n (+ n 1)) (l (desc-ch (- n p) (- n p) n))))
                   :in-theory (disable readings-are-mirror-images no-dup-mirror-chains))))
+
+;; ---------------------------------------------------------------------------
+;; Which chains: each reading enumerates EXACTLY the strictly monotone
+;; chains of m distinct indices from 1..n (increasing for the ascending
+;; reading, decreasing for the descending one).  Together with the
+;; no-repetition theorems above, every set of m distinct roots appears in
+;; each reading exactly once.
+
+;; A strictly increasing chain of naturals within [lo, hi].
+(defun inc-chainp (ch lo hi)
+  (if (atom ch)
+      (null ch)
+    (and (natp (car ch)) (<= lo (car ch)) (<= (car ch) hi)
+         (inc-chainp (cdr ch) (+ 1 (car ch)) hi))))
+
+(defthm inc-chainp-weaken
+  (implies (and (inc-chainp ch (+ 1 lo) hi) (integerp lo))
+           (inc-chainp ch lo hi)))
+
+(defun inc-ch-ind (k lo hi ch)
+  (declare (xargs :measure (make-ord 1 (+ 1 (nfix k)) (nfix (- (+ 1 (nfix hi)) (nfix lo))))))
+  (cond ((zp k) ch)
+        ((or (not (natp lo)) (not (natp hi)) (< hi lo)) ch)
+        (t (list (inc-ch-ind (- k 1) (+ lo 1) hi (cdr ch))
+                 (inc-ch-ind k (+ lo 1) hi ch)))))
+
+(defthm inc-ch-members
+  (implies (and (natp lo) (natp hi) (natp k))
+           (iff (member-equal ch (inc-ch k lo hi))
+                (and (inc-chainp ch lo hi) (equal (len ch) k))))
+  :hints (("Goal" :induct (inc-ch-ind k lo hi ch) :in-theory (enable inc-ch))))
+
+;; A strictly decreasing chain of positive integers, the first one <= hi.
+(defun dec-chainp (ch hi)
+  (if (atom ch)
+      (null ch)
+    (and (posp (car ch)) (<= (car ch) hi)
+         (dec-chainp (cdr ch) (- (car ch) 1)))))
+
+(defthm dec-chainp-len-bound
+  (implies (and (dec-chainp ch hi) (< 0 (len ch)))
+           (<= (len ch) (car ch)))
+  :rule-classes :linear)
+
+(defthm dec-chainp-cdr
+  (implies (and (dec-chainp ch hi) (consp ch))
+           (dec-chainp (cdr ch) (- (car ch) 1)))
+  :rule-classes :forward-chaining)
+
+(defthm dec-chainp-weaken
+  (implies (and (dec-chainp ch hi) (<= hi hi2))
+           (dec-chainp ch hi2)))
+
+(defun desc-ch-ind (k i m ch)
+  (declare (xargs :measure (make-ord 1 (+ 1 (nfix k)) (nfix (- (+ 1 (nfix m)) (nfix i))))))
+  (cond ((zp k) ch)
+        ((or (not (natp i)) (not (natp m)) (< m i)) ch)
+        (t (list (desc-ch-ind (- k 1) (- k 1) (- i 1) (cdr ch))
+                 (desc-ch-ind k (+ i 1) m ch)))))
+
+(defthm desc-ch-members
+  (implies (and (natp k) (natp s) (natp i) (<= k s))
+           (iff (member-equal ch (desc-ch k s i))
+                (and (dec-chainp ch i) (equal (len ch) k)
+                     (or (zp k) (<= s (car ch))))))
+  :hints (("Goal" :induct (desc-ch-ind k s i ch)
+                  :in-theory (disable desc-ch-step))
+          ("Subgoal *1/3" :use (:instance desc-ch-step (i s) (m i)))))
+
+;; The chains of the ascending reading of b_p are exactly the strictly
+;; increasing chains of m = n-p indices from 1..n ...
+(defthm ascending-terms-are-all-increasing-chains
+  (implies (and (natp p) (natp n) (<= p n))
+           (iff (member-equal ch (asc-ch (- n p) 1 (+ p 1)))
+                (and (inc-chainp ch 1 n) (equal (len ch) (- n p))))))
+
+;; ... and those of the descending reading are exactly the strictly
+;; decreasing ones.
+(defthm descending-terms-are-all-decreasing-chains
+  (implies (and (natp p) (natp n) (<= p n))
+           (iff (member-equal ch (desc-ch (- n p) (- n p) n))
+                (and (dec-chainp ch n) (equal (len ch) (- n p))))))
 
 ;; ---------------------------------------------------------------------------
 ;; Ground check: n = 4, p = 2 (m = 2).
