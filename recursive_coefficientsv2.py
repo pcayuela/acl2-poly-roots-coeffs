@@ -7,7 +7,7 @@ This script implements the compact recursive sum-product formula to compute
 coefficients of a monic polynomial given its roots.
 
 Formula:
-  b_p = (-1)^p * \prod_{q=p}^{n-1} \sum_{i_q=n-q}^{r} a_{i_q}
+  b_p = (-1)^(n-p) * \prod_{q=p}^{n-1} \sum_{i_q=n-q}^{r} a_{i_q}
   
 Rule for upper limit 'r':
   - r = n if q = p
